@@ -3,7 +3,6 @@ from typing import Optional, Type
 import boto3
 import botocore.client
 import botocore.exceptions
-import tqdm
 
 from aws_pc import iam, organization
 
@@ -15,11 +14,11 @@ def delete_policy_and_role(sso_profile_name: str, policy_names: list[str], role_
     org_client = session.client('organizations')
     accounts = organization.get_organisation_accounts(org_client, include_suspended=False)
 
-    for account in tqdm.tqdm(accounts):
+    for account in accounts:
         try:
             iam_client = get_iam_client(session, account["Id"])
         except iam.AccessDeniedException:
-            tqdm.tqdm.write(f"Unable to assume ControlTowerExecution role in account {account['Name']}.")
+            print(f"Unable to assume ControlTowerExecution role in account {account['Name']}.")
             continue
         for name in policy_names:
             policy_arn = get_policy_arn(iam_client, name)
@@ -27,13 +26,13 @@ def delete_policy_and_role(sso_profile_name: str, policy_names: list[str], role_
                 try:
                     iam.delete_policy(iam_client, policy_arn)
                 except botocore.exceptions.ClientError:
-                    tqdm.tqdm.write(f"Unable to delete policy for account {account['Name']} due to permissions.")
+                    print(f"Unable to delete policy for account {account['Name']} due to permissions.")
         # This will only work if all the attached policies have been detached.
         try:
             iam.delete_role(iam_client, role_name)
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchEntity":
-                tqdm.tqdm.write(f"Role not found in {account['Name']}")
+                print(f"Role not found in {account['Name']}")
             else:
                 raise e
 

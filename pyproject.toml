@@ -1,6 +1,13 @@
 [project]
 name = "aws_pc"
-version = "0.1"
+version = "0.1.1"
+authors = [
+  { name="Peter Crowther"},
+]
+description = "Methods and objects for interfacing with AWS through boto3."
+
+[project.urls]
+"Homepage" = "https://github.com/merrygoat/aws_pc"
 
 [build-system]
 requires = ["setuptools >= 61.0.0"]

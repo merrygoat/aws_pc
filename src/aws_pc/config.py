@@ -5,6 +5,7 @@ import boto3
 
 CONFIG_PATH = pathlib.Path.home() / ".aws/config"
 
+
 class Profile:
     """An SSO profile that allows access to an account."""
     def __init__(self, profile_name: str, friendly_name: str, account_id: str):

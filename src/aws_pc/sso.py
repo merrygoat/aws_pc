@@ -135,7 +135,7 @@ def get_permission_set(instance_arn: str, set_arn: str, sso_client: Type[botocor
     for page in page_iterator:
         policies.extend(page["CustomerManagedPolicyReferences"])
     new_set.inline_policy = sso_client.get_inline_policy_for_permission_set(InstanceArn=instance_arn,
-                                                                    PermissionSetArn=set_arn)["InlinePolicy"]
+                                                                            PermissionSetArn=set_arn)["InlinePolicy"]
     for policy in policies:
         new_set.policies.append(Policy(policy["Arn"], "User"))
     return new_set

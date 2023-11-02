@@ -3,7 +3,6 @@ import json
 import boto3
 import botocore.client
 import botocore.exceptions
-import tqdm
 
 from aws_pc import iam, organization
 
@@ -16,20 +15,20 @@ def add_role_and_policy(sso_profile_name: str, role_name: str, role_trust_policy
     org_client = session.client('organizations')
     accounts = organization.get_organisation_accounts(org_client, include_suspended=False)
 
-    for account in tqdm.tqdm(accounts, desc="Adding roles and policies to accounts"):
+    for account in accounts:
         try:
             iam_client = iam.get_role_based_client(session,
                                                    f"arn:aws:iam::{account['Id']}:role/AWSControlTowerExecution",
                                                    "access_audit_lambda_function", "iam")
         except iam.AccessDeniedException:
-            tqdm.tqdm.write(f"Unable to assume ControlTowerExecution role in account {account['Name']}.")
+            print(f"Unable to assume ControlTowerExecution role in account {account['Name']}.")
             continue
         else:
             try:
                 iam.add_role(iam_client, role_name, role_trust_policy, role_description)
             except botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == 'PermissionsDenied':
-                    tqdm.tqdm.write(f"Unable to add role for account {account['Name']} due to permissions.")
+                    print(f"Unable to add role for account {account['Name']} due to permissions.")
                     continue
                 else:
                     raise e
