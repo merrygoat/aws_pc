@@ -26,6 +26,7 @@ def add_role_and_policy(sso_profile_name: str, role_name: str, role_trust_policy
         else:
             try:
                 iam.add_role(iam_client, role_name, role_trust_policy, role_description)
+                print(f"Role successfully deployed to {account['Name']}")
             except botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == 'PermissionsDenied':
                     print(f"Unable to add role for account {account['Name']} due to permissions.")
@@ -49,5 +50,5 @@ if __name__ == "__main__":
     with open("role_trust_policy.txt", 'r') as input_file:
         ROLE_TRUST_POLICY = json.dumps(json.load(input_file))
 
-    add_role_and_policy("management-hrds", ROLE_NAME, ROLE_TRUST_POLICY, ROLE_DESCRIPTION, POLICY_NAME, POLICY_TEXT,
+    add_role_and_policy("hrds-management", ROLE_NAME, ROLE_TRUST_POLICY, ROLE_DESCRIPTION, POLICY_NAME, POLICY_TEXT,
                         True)

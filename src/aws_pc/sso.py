@@ -146,8 +146,6 @@ def get_assignments(instance_arn: str, sso_client: Type[botocore.client.BaseClie
     User, PermissionSet and Account objects and so does not return a list of the Assignments.
     """
     for account in access_info.accounts:
-        if account.access_error:
-            continue
         account_sets = get_applied_permission_sets(sso_client, instance_arn, account.id)
 
         for permission_set_arn in account_sets:
@@ -205,7 +203,8 @@ def get_applied_permission_sets(sso_client: Type[botocore.client.BaseClient], in
     paginator = sso_client.get_paginator("list_permission_sets_provisioned_to_account")
     page_iterator = paginator.paginate(InstanceArn=instance_arn, AccountId=account_id)
     for page in page_iterator:
-        account_permission_sets.extend(page["PermissionSets"])
+        if "PermissionSets" in page:
+            account_permission_sets.extend(page["PermissionSets"])
     return account_permission_sets
 
 

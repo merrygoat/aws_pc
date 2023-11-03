@@ -30,6 +30,7 @@ def delete_policy_and_role(sso_profile_name: str, policy_names: list[str], role_
         # This will only work if all the attached policies have been detached.
         try:
             iam.delete_role(iam_client, role_name)
+            print(f"Role deleted from {account['name']} account.")
         except botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchEntity":
                 print(f"Role not found in {account['Name']}")
@@ -56,4 +57,4 @@ if __name__ == "__main__":
     POLICY_NAME = ["Audit_IAM_Users"]
     ROLE_NAME = "Audit_IAM_Users"
 
-    delete_policy_and_role("management-hrds", POLICY_NAME, ROLE_NAME)
+    delete_policy_and_role("hrds-management", POLICY_NAME, ROLE_NAME)
