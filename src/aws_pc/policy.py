@@ -90,7 +90,7 @@ def load_policy_cache(s3_client: Type[botocore.client.BaseClient], remote_bucket
             else:
                 raise e
         else:
-            POLICY_DETAILS_CACHE = response["Body"]
+            POLICY_DETAILS_CACHE = dill.load(response["Body"])
     else:
         # load local cache
         cache_path = pathlib.Path(LOCAL_CACHE_PATH)
