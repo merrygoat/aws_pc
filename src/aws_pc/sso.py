@@ -1,6 +1,8 @@
 # Functions to work with IAM Identity Center
 
 from __future__ import annotations
+
+import datetime
 from typing import Type, TYPE_CHECKING
 
 import botocore.client
@@ -23,6 +25,7 @@ class AccessInformation:
         self.groups: dict[str, Group] = {}
         self.users: dict[str, SSOUser] = {}
         self.views: dict[str, dict] = {}
+        self.time: str = datetime.datetime.now().strftime("%d-%m-%Y - %H:%M:%S")
 
 
 class PermissionSet:
