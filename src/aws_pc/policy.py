@@ -5,6 +5,7 @@ import pathlib
 from typing import Type, Optional
 
 import botocore.client
+import botocore.exceptions
 import dill
 
 import aws_pc.s3 as s3
@@ -81,8 +82,15 @@ def load_policy_cache(s3_client: Type[botocore.client.BaseClient], remote_bucket
 
     if remote_bucket_name:
         # load remote cache
-        response = s3_client.get_object(Bucket=remote_bucket_name, Key=CACHE_NAME)
-        POLICY_DETAILS_CACHE = response["Body"]
+        try:
+            response = s3_client.get_object(Bucket=remote_bucket_name, Key=CACHE_NAME)
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                return POLICY_DETAILS_CACHE
+            else:
+                raise e
+        else:
+            POLICY_DETAILS_CACHE = response["Body"]
     else:
         # load local cache
         cache_path = pathlib.Path(LOCAL_CACHE_PATH)
