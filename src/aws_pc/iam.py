@@ -184,6 +184,9 @@ def delete_role(iam_client, role_name):
     inline_policies = iam_client.list_role_policies(RoleName=role_name)
     for name in inline_policies["PolicyNames"]:
         iam_client.delete_role_policy(RoleName=role_name, PolicyName=name)
+    managed_policies = iam_client.list_attached_role_policies(RoleName=role_name)
+    for policy in managed_policies["AttachedPolicies"]:
+        iam_client.detach_role_policy(RoleName=role_name, PolicyArn=policy["PolicyArn"])
     iam_client.delete_role(RoleName=role_name)
 
 
