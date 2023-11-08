@@ -42,6 +42,28 @@ class IAMUser:
         self.policies.extend(get_group_policies(user_details, account_details["Groups"]))
 
 
+class IAMRole:
+    """An object representing an IAM role.
+
+    :ivar name: The name of the role.
+    :ivar path: The path of the role
+    :ivar arn: The ARN of the role.
+    :ivar policies: A list of policies attached to the role."""
+    def __init__(self, role_details: dict):
+        self.name = role_details["RoleName"]
+        self.path = role_details["Path"]
+        self.aws_managed = self.is_aws_managed()
+        self.arn = role_details["Arn"]
+        self.policies: list[Policy] = [Policy(policy["PolicyArn"], "Role") for policy in role_details["AttachedManagedPolicies"]]
+        self.trust_policy: str = json.dumps(role_details["AssumeRolePolicyDocument"], indent=2).replace("\n", "<br>")
+
+    def is_aws_managed(self) -> bool:
+        prefixes = ["/aws-service-role", "/service-role", "/aws-reserved"]
+        for prefix in prefixes:
+            if self.path.startswith(prefix):
+                return True
+        return False
+
 class Account:
     """An object representing an AWS account.
 
@@ -59,9 +81,11 @@ class Account:
         self.assignments: list[Assignment] = []
         self.num_permission_sets: int = 0
         self.access_error = False
+        self.iam_roles: list[IAMRole] = []
 
         if account_details:
-            self.iam_users = [(IAMUser(username, account_details)) for username in account_details["Users"]]
+            self.iam_users = [IAMUser(username, account_details) for username in account_details["Users"]]
+            self.iam_roles = [IAMRole(role) for role in account_details["Roles"].values()]
         else:
             self.access_error = True
 
@@ -164,7 +188,6 @@ def add_policy(iam_client: Type[botocore.client.BaseClient], policy_name: str, p
     :param update_text: If True and policy already exists then replaces existing policy text with `policy_text`.
     """
     # Get all customer managed policies and check the names
-    policy_arn = None
     policies = get_policies(iam_client)
     for policy in policies:
         if policy["PolicyName"] == policy_name:

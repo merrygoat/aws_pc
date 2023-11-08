@@ -11,7 +11,7 @@ import dill
 import aws_pc.s3 as s3
 
 POLICY_DETAILS_CACHE: dict[str, Policy] = {}
-ATTACHMENT_TYPES = ["Group", "User", "Inline"]
+ATTACHMENT_TYPES = ["Group", "User", "Inline", "Role"]
 CACHE_NAME = "policy_cache.bin"
 LOCAL_CACHE_PATH = pathlib.Path(".") / CACHE_NAME
 
