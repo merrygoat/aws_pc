@@ -38,7 +38,7 @@ class IAMUser:
         self.groups: list[Group] = user_details["GroupList"]
 
         self.policies: list[Policy] = [Policy(policy["PolicyArn"], "User") for
-                                                policy in user_details["AttachedManagedPolicies"]]
+                                       policy in user_details["AttachedManagedPolicies"]]
         self.policies.extend(get_group_policies(user_details, account_details["Groups"]))
 
 
@@ -54,7 +54,8 @@ class IAMRole:
         self.path = role_details["Path"]
         self.aws_managed = self.is_aws_managed()
         self.arn = role_details["Arn"]
-        self.policies: list[Policy] = [Policy(policy["PolicyArn"], "Role") for policy in role_details["AttachedManagedPolicies"]]
+        self.policies: list[Policy] = [Policy(policy["PolicyArn"], "Role") for
+                                       policy in role_details["AttachedManagedPolicies"]]
         self.trust_policy: str = json.dumps(role_details["AssumeRolePolicyDocument"], indent=2).replace("\n", "<br>")
 
     def is_aws_managed(self) -> bool:
@@ -63,6 +64,7 @@ class IAMRole:
             if self.path.startswith(prefix):
                 return True
         return False
+
 
 class Account:
     """An object representing an AWS account.
@@ -93,7 +95,8 @@ class Account:
         return f"{self.name} - {self.id}"
 
 
-def get_account_details(iam_client: Type[botocore.client.BaseClient]) -> dict[str, dict]:
+def get_account_details(iam_client: Type[botocore.client.BaseClient], account_name: str,
+                        account_id: str) -> Account:
     """Get IAM information about an account.
 
     Uses the `get_account_authorization_details` API method to collect information and then repacks it into
@@ -108,13 +111,14 @@ def get_account_details(iam_client: Type[botocore.client.BaseClient]) -> dict[st
             for item in details:
                 details[item].extend(page[item])
     except botocore.exceptions.ClientError:
-        raise NoAccessException
-    # Unpack lists of items into dicts
-    details["Users"] = {user["UserName"]: user for user in details.pop("UserDetailList")}
-    details["Groups"] = {group["GroupName"]: group for group in details.pop("GroupDetailList")}
-    details["Roles"] = {role["RoleName"]: role for role in details.pop("RoleDetailList")}
+        details = None
+    else:
+        # Unpack lists of items into dicts
+        details["Users"] = {user["UserName"]: user for user in details.pop("UserDetailList")}
+        details["Groups"] = {group["GroupName"]: group for group in details.pop("GroupDetailList")}
+        details["Roles"] = {role["RoleName"]: role for role in details.pop("RoleDetailList")}
 
-    return details
+    return Account(account_name, account_id, details)
 
 
 def get_role_based_client(session: boto3.Session, role_arn: str, session_name: str,
