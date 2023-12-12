@@ -2,3 +2,4 @@ boto3
 dateparser
 dill
 setuptools
+pyyaml
