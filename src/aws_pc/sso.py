@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 from typing import Type, TYPE_CHECKING
 
 import botocore.client
@@ -11,7 +10,7 @@ import botocore.errorfactory
 from aws_pc.policy import Policy
 
 if TYPE_CHECKING:
-    from iam import Account
+    pass
 
 
 class NoAccessException(Exception):
@@ -19,13 +18,30 @@ class NoAccessException(Exception):
 
 
 class AccessInformation:
-    def __init__(self, accounts: list[Account]):
-        self.accounts: list[Account] = accounts
+    def __init__(self, account_info: list[dict]):
+        self.accounts = [Account(account['name'], account['id']) for account in account_info]
         self.permission_sets: dict[str, PermissionSet] = {}
         self.groups: dict[str, Group] = {}
         self.users: dict[str, SSOUser] = {}
         self.views: dict[str, dict] = {}
-        self.time: str = datetime.datetime.now().strftime("%d-%m-%Y - %H:%M:%S")
+
+
+class Account:
+    """An object containing information about the SSO identities in an AWS account.
+
+    :ivar name: The friendly name of the Account.
+    :ivar id: The numerical account ID.
+    :ivar assignments: A list of `assignments` which list which identities policies are applied to.
+    :ivar num_permission_sets: A count of the total number of SSO permission sets in the account.
+    """
+    def __init__(self, name: str, account_id: str):
+        self.name: str = name
+        self.id: str = account_id
+        self.assignments: list[Assignment] = []
+        self.num_permission_sets: int = 0
+
+    def repr(self):
+        return f"Account: {self.name}"
 
 
 class PermissionSet:
@@ -78,9 +94,9 @@ class Identity:
 
     def type(self) -> str:
         """Hack so that jinja can distinguish between child types."""
-        if type(self) == Group:
+        if isinstance(self, Group):
             return "Group"
-        elif type(self) == SSOUser:
+        elif isinstance(self, SSOUser):
             return "User"
 
 

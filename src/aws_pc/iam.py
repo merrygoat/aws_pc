@@ -12,7 +12,7 @@ import botocore.exceptions
 from aws_pc.policy import get_group_policies, Policy
 
 if TYPE_CHECKING:
-    from sso import Group, Assignment
+    from sso import Group
 
 
 class NoAccessException(Exception):
@@ -27,6 +27,7 @@ class AccessDeniedException(Exception):
 class IAMUser:
     """An object describing an IAM user.
 
+    :ivar username: The username of the IAM user
     :ivar groups: A list of `Group`s that a user is a member of.
     :ivar policies: A list of `Policy` objects representing policies that are attached to the user or to groups that
       the user is a member of.
@@ -66,22 +67,18 @@ class IAMRole:
         return False
 
 
-class Account:
-    """An object representing an AWS account.
+class IAMIdentities:
+    """An object containing information on the IAM Users, Roles and Policies in an AWS account.
 
     :ivar name: The friendly name of the Account.
     :ivar id: The numerical account ID.
     :ivar iam_users: A list of `IAMUser`s within the account.
-    :ivar assignments: A list of `assignments` which list which identities policies are applied to.
-    :ivar num_permission_sets: A count of the total number of SSO permission sets in the account.
     :ivar access_error: True if it is not possible to read account details.
     """
     def __init__(self, name: str, account_id: str, account_details: Optional[dict]):
         self.name: str = name
         self.id: str = account_id
         self.iam_users: list[IAMUser] = []
-        self.assignments: list[Assignment] = []
-        self.num_permission_sets: int = 0
         self.access_error = False
         self.iam_roles: list[IAMRole] = []
 
@@ -94,31 +91,43 @@ class Account:
     def __repr__(self):
         return f"{self.name} - {self.id}"
 
+    def get_policy_details(self, iam_client: Type[botocore.client.BaseClient],
+                           s3_client: Type[botocore.client.BaseClient], bucket_name: Optional[str]):
+        """For each IAM policy in the account, fetch the policy details document."""
+        for user in self.iam_users:
+            for policy in user.policies:
+                policy.get_policy_details(iam_client, s3_client, bucket_name)
+
+        for role in self.iam_roles:
+            for policy in role.policies:
+                policy.get_policy_details(iam_client, s3_client, bucket_name)
+
 
 def get_account_details(iam_client: Type[botocore.client.BaseClient], account_name: str,
-                        account_id: str) -> Account:
+                        account_id: str) -> IAMIdentities:
     """Get IAM information about an account.
 
     Uses the `get_account_authorization_details` API method to collect information and then repacks it into
     a dictionary for ease of use.
     """
-    details = {"UserDetailList": [], "GroupDetailList": [], "RoleDetailList": []}
+    packed_details = {"UserDetailList": [], "GroupDetailList": [], "RoleDetailList": []}
     # noinspection PyArgumentList
     paginator = iam_client.get_paginator('get_account_authorization_details')
     page_iterator = paginator.paginate(Filter=['User', 'Role', 'Group'])
     try:
         for page in page_iterator:
-            for item in details:
-                details[item].extend(page[item])
+            for item in packed_details:
+                packed_details[item].extend(page[item])
     except botocore.exceptions.ClientError:
         details = None
     else:
         # Unpack lists of items into dicts
-        details["Users"] = {user["UserName"]: user for user in details.pop("UserDetailList")}
-        details["Groups"] = {group["GroupName"]: group for group in details.pop("GroupDetailList")}
-        details["Roles"] = {role["RoleName"]: role for role in details.pop("RoleDetailList")}
+        details = {}
+        details["Users"] = {user["UserName"]: user for user in packed_details.pop("UserDetailList")}
+        details["Groups"] = {group["GroupName"]: group for group in packed_details.pop("GroupDetailList")}
+        details["Roles"] = {role["RoleName"]: role for role in packed_details.pop("RoleDetailList")}
 
-    return Account(account_name, account_id, details)
+    return IAMIdentities(account_name, account_id, details)
 
 
 def get_role_based_client(session: boto3.Session, role_arn: str, session_name: str,
