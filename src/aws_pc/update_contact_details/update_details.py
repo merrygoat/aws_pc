@@ -1,10 +1,29 @@
+from typing import Type
+
 import boto3
+import botocore.client
 import yaml
 
 from aws_pc import organization
 
 
-def add_role_and_policy(sso_profile_name: str):
+def audit_alternate_contact(account_client: Type[botocore.client.BaseClient],
+                            management_account_id: str, account_id: str, contact_type: str):
+    if account_id != management_account_id:
+        return account_client.get_contact_information(AccountId='string')
+    else:
+        return account_client.get_contact_information()
+
+
+def change_contact_details(account_client: Type[botocore.client.BaseClient], management_account_id: str,
+                           account_id: str, contact_details: dict):
+    if account_id != management_account_id:
+        account_client.put_contact_information(AccountId=account_id, ContactInformation=contact_details)
+    else:
+        account_client.put_contact_information(ContactInformation=contact_details)
+
+
+def loop_over_accounts(sso_profile_name: str):
     """Loop through all accounts in organization updating the contact information."""
 
     with open("details.yaml", 'r') as input_file:
@@ -18,14 +37,13 @@ def add_role_and_policy(sso_profile_name: str):
     accounts = organization.get_organisation_accounts(org_client, include_suspended=False)
 
     account_client = session.client('account')
-
+    accounts = [{"Id": "463829754490"}]
     for account in accounts:
-        if account["Id"] != management_account_id:
-            account_client.put_contact_information(AccountId=account['Id'],
-                                                   ContactInformation=contact_details)
-        else:
-            account_client.put_contact_information(ContactInformation=contact_details)
+        # change_contact_details(account_client, management_account_id, account["Id"], contact_details)
+        details = audit_alternate_contact(account_client, management_account_id, account["Id"], "BILLING")
+        print(f"{account['Id']}: {details}")
 
 
 if __name__ == "__main__":
-    add_role_and_policy("management-hrds")
+    loop_over_accounts("management-hrds")
+
