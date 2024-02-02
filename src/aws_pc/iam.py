@@ -9,10 +9,11 @@ import boto3
 import botocore.client
 import botocore.exceptions
 
-from aws_pc.policy import get_group_policies, Policy
+from aws_pc.policy import get_group_policies, PolicySummary
 
 if TYPE_CHECKING:
-    from sso import Group
+    from aws_pc.sso import Group
+    from aws_pc.policy import PolicyDetails
 
 
 class NoAccessException(Exception):
@@ -38,8 +39,8 @@ class IAMUser:
         user_details = account_details["Users"][self.username]
         self.groups: list[Group] = user_details["GroupList"]
 
-        self.policies: list[Policy] = [Policy(policy["PolicyArn"], "User") for
-                                       policy in user_details["AttachedManagedPolicies"]]
+        self.policies: list[PolicySummary] = [PolicySummary(policy["PolicyArn"], "User") for
+                                              policy in user_details["AttachedManagedPolicies"]]
         self.policies.extend(get_group_policies(user_details, account_details["Groups"]))
 
 
@@ -55,8 +56,8 @@ class IAMRole:
         self.path = role_details["Path"]
         self.aws_managed = self.is_aws_managed()
         self.arn = role_details["Arn"]
-        self.policies: list[Policy] = [Policy(policy["PolicyArn"], "Role") for
-                                       policy in role_details["AttachedManagedPolicies"]]
+        self.policies: list[PolicySummary] = [PolicySummary(policy["PolicyArn"], "Role") for
+                                              policy in role_details["AttachedManagedPolicies"]]
         self.trust_policy: str = json.dumps(role_details["AssumeRolePolicyDocument"], indent=2).replace("\n", "<br>")
 
     def is_aws_managed(self) -> bool:
@@ -81,6 +82,7 @@ class IAMIdentities:
         self.iam_users: list[IAMUser] = []
         self.access_error = False
         self.iam_roles: list[IAMRole] = []
+        self.policy_details: dict[str, PolicyDetails] = {}
 
         if account_details:
             self.iam_users = [IAMUser(username, account_details) for username in account_details["Users"]]
@@ -92,15 +94,22 @@ class IAMIdentities:
         return f"{self.name} - {self.id}"
 
     def get_policy_details(self, iam_client: Type[botocore.client.BaseClient],
-                           s3_client: Type[botocore.client.BaseClient], bucket_name: Optional[str]):
+                           s3_client: Type[botocore.client.BaseClient],
+                           bucket_name: Optional[str]) -> dict[str, PolicyDetails]:
         """For each IAM policy in the account, fetch the policy details document."""
+        policy_documents = {}
+
         for user in self.iam_users:
-            for policy in user.policies:
-                policy.get_policy_details(iam_client, s3_client, bucket_name)
+            for policy_summary in user.policies:
+                details = policy_summary.get_policy_details(iam_client, s3_client, bucket_name)
+                policy_documents[policy_summary.sanitized_arn] = details
 
         for role in self.iam_roles:
-            for policy in role.policies:
-                policy.get_policy_details(iam_client, s3_client, bucket_name)
+            for policy_summary in role.policies:
+                details = policy_summary.get_policy_details(iam_client, s3_client, bucket_name)
+                policy_documents[policy_summary.sanitized_arn] = details
+
+        return policy_documents
 
 
 def get_account_details(iam_client: Type[botocore.client.BaseClient], account_name: str,

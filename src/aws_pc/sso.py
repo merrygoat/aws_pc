@@ -7,10 +7,10 @@ from typing import Type, TYPE_CHECKING
 import botocore.client
 import botocore.errorfactory
 
-from aws_pc.policy import Policy
+from aws_pc.policy import PolicySummary
 
 if TYPE_CHECKING:
-    pass
+    from aws_pc.policy import PolicyDetails
 
 
 class NoAccessException(Exception):
@@ -24,6 +24,7 @@ class AccessInformation:
         self.groups: dict[str, Group] = {}
         self.users: dict[str, SSOUser] = {}
         self.views: dict[str, dict] = {}
+        self.policy_details: dict[str, PolicyDetails] = {}
 
 
 class Account:
@@ -56,7 +57,7 @@ class PermissionSet:
     def __init__(self, name: str, arn: str):
         self.name: str = name
         self.arn: str = arn
-        self.policies: list[Policy] = []
+        self.policies: list[PolicySummary] = []
         self.inline_policy: str = ""
         self.assignments: list[Assignment] = []
 
@@ -156,7 +157,7 @@ def get_permission_set(instance_arn: str, set_arn: str, sso_client: Type[botocor
     new_set.inline_policy = sso_client.get_inline_policy_for_permission_set(InstanceArn=instance_arn,
                                                                             PermissionSetArn=set_arn)["InlinePolicy"]
     for policy in policies:
-        new_set.policies.append(Policy(policy["Arn"], "User"))
+        new_set.policies.append(PolicySummary(policy["Arn"], "User"))
     return new_set
 
 

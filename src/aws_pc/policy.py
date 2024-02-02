@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import pathlib
 from typing import Type, Optional
+import re
 
 import botocore.client
 import botocore.exceptions
@@ -10,21 +11,18 @@ import dill
 
 import aws_pc.s3 as s3
 
-POLICY_DETAILS_CACHE: dict[str, Policy] = {}
+POLICY_DETAILS_CACHE: dict[str, PolicyDetails] = {}
 ATTACHMENT_TYPES = ["Group", "User", "Inline", "Role"]
 CACHE_NAME = "policy_cache.bin"
 LOCAL_CACHE_PATH = pathlib.Path(".") / CACHE_NAME
 
 
-class Policy:
+class PolicySummary:
     """A Policy is an IAM object which can be attached to an identity to control what access it has to resources.
 
-    :ivar name: The friendly name of the policy
-    :ivar attachment_type: Whether the policy is attached to a group, a user or inline.
-    :ivar text: The wording of the policy.
     :ivar arn: The Amazon Resource Name of the policy.
-    :ivar version: The version of the policy.
-    :ivar description: A textual description of the policy.
+    :ivar sanitized_arn: The ARN with invalid CSS selector characters removed.
+    :ivar attachment_type: Whether the policy is attached to a group, a user or inline.
     :ivar aws_managed: Whether the policy is a standard AWS provided one, or a custom one.
     """
     def __init__(self, arn: str, attachment_type: str):
@@ -32,23 +30,19 @@ class Policy:
             raise SyntaxError(f"Invalid attachment type '{attachment_type}' when instantiating policy")
 
         self.arn: str = arn
+        self.sanitized_arn = re.sub("[:/]", "", arn)
         self.attachment_type: str = attachment_type
         if self.arn.startswith("arn:aws:iam::aws:policy"):
             self.aws_managed = True
         else:
             self.aws_managed = False
 
-        self.name: str = ""
-        self.text: str = ""
-        self.version: str = ""
-        self.description: str = ""
-
-
     def __repr__(self):
         return f"{self.arn}"
 
     def get_policy_details(self, iam_client: Type[botocore.client.BaseClient],
-                           s3_client: Type[botocore.client.BaseClient], remote_bucket_name: Optional[str] = None):
+                           s3_client: Type[botocore.client.BaseClient],
+                           remote_bucket_name: Optional[str] = None) -> PolicyDetails:
         """Get details for the policy.
 
         Policy details are not downloaded with the get_account_authorization_details API request,
@@ -56,21 +50,40 @@ class Policy:
         """
         policy_details_cache = load_policy_cache(s3_client, remote_bucket_name)
 
-        if self.arn not in policy_details_cache:
-            policy = iam_client.get_policy(PolicyArn=self.arn)["Policy"]
-            self.name = policy["PolicyName"]
-            self.version = policy["DefaultVersionId"]
-            if "Description" in policy:
-                self.description = policy["Description"]
-            policy_text = iam_client.get_policy_version(PolicyArn=self.arn, VersionId=self.version)
-            self.text = json.dumps(policy_text["PolicyVersion"]["Document"], indent=2).replace("\n", "<br>")
-            policy_details_cache[self.arn] = self
-            save_policy_cache(s3_client, remote_bucket_name)
+        policy_details = PolicyDetails()
+
+        if self.arn in policy_details_cache:
+            return POLICY_DETAILS_CACHE[self.arn]
         else:
-            self.name = POLICY_DETAILS_CACHE[self.arn].name
-            self.text = POLICY_DETAILS_CACHE[self.arn].text
-            self.version = POLICY_DETAILS_CACHE[self.arn].version
-            self.description = POLICY_DETAILS_CACHE[self.arn].description
+            policy = iam_client.get_policy(PolicyArn=self.arn)["Policy"]
+            policy_details.name = policy["PolicyName"]
+            policy_details.version = policy["DefaultVersionId"]
+            if "Description" in policy:
+                policy_details.description = policy["Description"]
+            policy_text = iam_client.get_policy_version(PolicyArn=self.arn, VersionId=policy_details.version)
+            policy_details.text = json.dumps(policy_text["PolicyVersion"]["Document"], indent=2).replace("\n", "<br>")
+            policy_details_cache[self.arn] = policy_details
+            save_policy_cache(s3_client, remote_bucket_name)
+            return policy_details
+
+
+class PolicyDetails:
+    """Contains the name, description and policy text of a policy.
+
+    :ivar name: The friendly name of the policy
+    :ivar text: The wording of the policy.
+    :ivar version: The version of the policy.
+    :ivar description: A textual description of the policy.
+    """
+
+    def __init__(self):
+        self.name: str = ""
+        self.text: str = ""
+        self.version: str = ""
+        self.description: str = ""
+
+    def hash(self):
+        return hash(self.text)
 
 
 def load_policy_cache(s3_client: Type[botocore.client.BaseClient], remote_bucket_name: str):
@@ -100,6 +113,7 @@ def load_policy_cache(s3_client: Type[botocore.client.BaseClient], remote_bucket
 
     return POLICY_DETAILS_CACHE
 
+
 def save_policy_cache(s3_client: Type[botocore.client.BaseClient], remote_bucket_name: str):
     """Save the policy cache that is in memory."""
     with open(LOCAL_CACHE_PATH, 'wb') as output_file:
@@ -112,9 +126,9 @@ def save_policy_cache(s3_client: Type[botocore.client.BaseClient], remote_bucket
             s3_client.upload_fileobj(input_file, remote_bucket_name, CACHE_NAME)
 
 
-def get_group_policies(user_details: dict, group_details: dict) -> list[Policy]:
+def get_group_policies(user_details: dict, group_details: dict) -> list[PolicySummary]:
     """Return a list of `Policy` representing policies attached to groups the user is in."""
     group_policies = []
     for group_name in user_details["GroupList"]:
         group_policies.extend([policy['PolicyArn'] for policy in group_details[group_name]['AttachedManagedPolicies']])
-    return [Policy(arn, "Group") for arn in group_policies]
+    return [PolicySummary(arn, "Group") for arn in group_policies]
