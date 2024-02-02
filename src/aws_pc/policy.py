@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 from typing import Type, Optional
@@ -36,6 +37,7 @@ class PolicySummary:
             self.aws_managed = True
         else:
             self.aws_managed = False
+        self.policy_hash = ""
 
     def __repr__(self):
         return f"{self.arn}"
@@ -48,23 +50,24 @@ class PolicySummary:
         Policy details are not downloaded with the get_account_authorization_details API request,
         since there is a lot of duplication. Policy details are instead downloaded once for each policy and cached.
         """
-        policy_details_cache = load_policy_cache(s3_client, remote_bucket_name)
+        # policy_details_cache = load_policy_cache(s3_client, remote_bucket_name)
 
         policy_details = PolicyDetails()
 
-        if self.arn in policy_details_cache:
-            return POLICY_DETAILS_CACHE[self.arn]
-        else:
-            policy = iam_client.get_policy(PolicyArn=self.arn)["Policy"]
-            policy_details.name = policy["PolicyName"]
-            policy_details.version = policy["DefaultVersionId"]
-            if "Description" in policy:
-                policy_details.description = policy["Description"]
-            policy_text = iam_client.get_policy_version(PolicyArn=self.arn, VersionId=policy_details.version)
-            policy_details.text = json.dumps(policy_text["PolicyVersion"]["Document"], indent=2).replace("\n", "<br>")
-            policy_details_cache[self.arn] = policy_details
-            save_policy_cache(s3_client, remote_bucket_name)
-            return policy_details
+        # if self.arn in policy_details_cache:
+        #     return POLICY_DETAILS_CACHE[self.arn]
+        # else:
+        policy = iam_client.get_policy(PolicyArn=self.arn)["Policy"]
+        policy_details.name = policy["PolicyName"]
+        policy_details.version = policy["DefaultVersionId"]
+        if "Description" in policy:
+            policy_details.description = policy["Description"]
+        policy_text = iam_client.get_policy_version(PolicyArn=self.arn, VersionId=policy_details.version)
+        policy_details.text = json.dumps(policy_text["PolicyVersion"]["Document"], indent=2).replace("\n", "<br>")
+        self.policy_hash = policy_details.hash()
+        # policy_details_cache[self.arn] = policy_details
+        # save_policy_cache(s3_client, remote_bucket_name)
+        return policy_details
 
 
 class PolicyDetails:
@@ -83,7 +86,7 @@ class PolicyDetails:
         self.description: str = ""
 
     def hash(self):
-        return hash(self.text)
+        return hashlib.md5(bytes(self.text.encode("utf-8"))).hexdigest()
 
 
 def load_policy_cache(s3_client: Type[botocore.client.BaseClient], remote_bucket_name: str):

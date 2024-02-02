@@ -96,18 +96,21 @@ class IAMIdentities:
     def get_policy_details(self, iam_client: Type[botocore.client.BaseClient],
                            s3_client: Type[botocore.client.BaseClient],
                            bucket_name: Optional[str]) -> dict[str, PolicyDetails]:
-        """For each IAM policy in the account, fetch the policy details document."""
+        """For each IAM policy in the account, fetch the policy details document.
+
+        Returns a dictionary of policy documents labelled by the hash of the document.
+        """
         policy_documents = {}
 
         for user in self.iam_users:
             for policy_summary in user.policies:
                 details = policy_summary.get_policy_details(iam_client, s3_client, bucket_name)
-                policy_documents[policy_summary.sanitized_arn] = details
+                policy_documents[details.hash()] = details
 
         for role in self.iam_roles:
             for policy_summary in role.policies:
                 details = policy_summary.get_policy_details(iam_client, s3_client, bucket_name)
-                policy_documents[policy_summary.sanitized_arn] = details
+                policy_documents[details.hash()] = details
 
         return policy_documents
 
