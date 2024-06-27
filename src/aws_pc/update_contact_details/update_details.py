@@ -33,17 +33,17 @@ def loop_over_accounts(sso_profile_name: str, update_details: bool = False):
 
     contact_info = {}
     for account in tqdm.tqdm(accounts):
-        account_info = {}
         account_id = account["Id"]
+        if account_id != management_account_id:
+            account_info = {
+                "default": account_client.get_contact_information(AccountId=account_id)["ContactInformation"],
+                "billing": get_alternate_contact_info(account_client, account_id, "BILLING"),
+                "security": get_alternate_contact_info(account_client, account_id, "SECURITY"),
+                "operations": get_alternate_contact_info(account_client, account_id, "OPERATIONS")}
 
-        account_info["default"] = account_client.get_contact_information(AccountId=account_id)["ContactInformation"]
-        account_info["billing"] = get_alternate_contact_info(account_client, account_id, "BILLING")
-        account_info["security"] = get_alternate_contact_info(account_client, account_id, "SECURITY")
-        account_info["operations"] = get_alternate_contact_info(account_client, account_id, "OPERATIONS")
-
-        contact_info[account_id] = account_info
-        if update_details:
-            account_client.put_contact_information(AccountId=account_id, ContactInformation=contact_details)
+            contact_info[account_id] = account_info
+            if update_details:
+                account_client.put_contact_information(AccountId=account_id, ContactInformation=contact_details)
 
     with open("contact_details_report.txt", 'w') as output_file:
         output_file.write(f"Report on the contact details of all accounts in the organization managed by the "
@@ -55,5 +55,5 @@ def loop_over_accounts(sso_profile_name: str, update_details: bool = False):
 
 
 if __name__ == "__main__":
-    loop_over_accounts("management-hrds", update_details=True)
+    loop_over_accounts("management-hrds")
 
