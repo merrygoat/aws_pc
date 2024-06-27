@@ -8,3 +8,4 @@ __pycache__/
 /src/aws_pc.egg-info/
 /dist/
 /src/aws_pc/update_contact_details/details.yaml
+/src/aws_pc/update_contact_details/contact_details_report.txt
