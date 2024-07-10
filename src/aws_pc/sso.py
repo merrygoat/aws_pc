@@ -181,8 +181,11 @@ def get_assignments(instance_arn: str, sso_client: Type[botocore.client.BaseClie
                 new_assignment = Assignment(access_info.permission_sets[permission_set_arn], account)
                 principal_id = assignment["PrincipalId"]
                 if assignment["PrincipalType"] == "GROUP":
-                    new_assignment.members.append(access_info.groups[principal_id])
-                    access_info.groups[principal_id].assignments.append(new_assignment)
+                    if principal_id in access_info.groups:
+                        new_assignment.members.append(access_info.groups[principal_id])
+                        access_info.groups[principal_id].assignments.append(new_assignment)
+                    else:
+                        access_info.groups[principal_id] = Group(principal_id, "Unknown")
                 elif assignment["PrincipalType"] == "USER":
                     if principal_id not in access_info.users:
                         access_info.users[principal_id] = (SSOUser(principal_id, "Unknown", "Unknown"))
